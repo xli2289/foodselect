@@ -1,0 +1,16 @@
+# 项目数据 / 缓存（非源码）
+.workbuddy/
+.qoder/
+.preview-deploy/
+
+# 依赖
+node_modules/
+node_modules
+
+# 构建产物（可重新生成）
+foodselect-netlify.zip
+
+# 系统 / 编辑器
+.DS_Store
+Thumbs.db
+*.log
