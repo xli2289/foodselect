@@ -11,12 +11,15 @@ const root = path.resolve(__dirname, '..');
 
 (async () => {
 
-/* app.js / store.js 是 ESM，但项目无 package.json，Node 会按 CJS 解析 .js
-   → 复制到临时目录改名 .mjs 再 import，避免污染项目 */
+/* app.js / store.js / seed.data.js 是 ESM，但项目无 package.json，Node 会按 CJS 解析 .js
+   → 复制到临时目录改名 .mjs 再 import，并同步改写模块间的相对引用，避免污染项目
+   （新增数据模块时，记得在这里加一条 copy + 引用替换，否则 import 会找不到文件） */
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'foodselect-'));
 const appSrc = fs.readFileSync(path.join(root, 'js/app.js'), 'utf8').replace("'./store.js'", "'./store.mjs'");
 fs.writeFileSync(path.join(tmp, 'app.mjs'), appSrc);
-fs.copyFileSync(path.join(root, 'js/store.js'), path.join(tmp, 'store.mjs'));
+const storeSrc = fs.readFileSync(path.join(root, 'js/store.js'), 'utf8').replace("'./seed.data.js'", "'./seed.data.mjs'");
+fs.writeFileSync(path.join(tmp, 'store.mjs'), storeSrc);
+fs.copyFileSync(path.join(root, 'js/seed.data.js'), path.join(tmp, 'seed.data.mjs'));
 
 const dom = new JSDOM(fs.readFileSync(path.join(root, 'index.html'), 'utf8'), { url: 'http://localhost/' });
 const win = dom.window;
@@ -49,6 +52,12 @@ const dayCell = d => $$('.day:not(.empty)').find(c => c.textContent.replace(/\D/
 const SEED_COUNT = S.getRecipes().length;
 
 console.log('\n[1] 初始渲染');
+/* 种子数据应来自独立数据文件 js/seed.data.js，而非硬编码在 store.js 里 */
+const SEED = await import(pathToFileURL(path.join(tmp, 'seed.data.mjs')).href);
+ok('默认食谱提取为独立数据文件 js/seed.data.js', !!SEED.SEED_GROUPS && Array.isArray(SEED.CATEGORIES));
+ok('数据文件菜名总数 == 初始食谱数', SEED.SEED_GROUPS.reduce((n, g) => n + g.names.length, 0) === SEED_COUNT);
+ok('数据文件每个分组的分类都在 CATEGORIES 中定义',
+  SEED.SEED_GROUPS.every(g => SEED.CATEGORIES.some(c => c.key === g.category)));
 ok('首页渲染出日历', !!$('.cal-hero') && !!$('.days'));
 ok('底部导航第一项为「计划」', $$('.nav div')[0].textContent.includes('计划'));
 ok('底部导航第三项为「买菜」', $$('.nav div')[2].textContent.includes('买菜'));

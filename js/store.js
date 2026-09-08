@@ -1,15 +1,6 @@
-﻿const KEY = 'breakfast_app_v1';
+﻿import { CATEGORIES, SEED_GROUPS } from './seed.data.js';
 
-const CATEGORIES = [
-    { key: 'mian',  name: '面食' },
-    { key: 'zhong', name: '中式主食' },
-    { key: 'xi',    name: '西式主食' },
-    { key: 'dian',  name: '派·甜点' },
-    { key: 'dan',   name: '蛋类' },
-    { key: 'rou',   name: '肉类' },
-    { key: 'zhou',  name: '粥·饮' },
-    { key: 'tang',  name: '汤·馄饨' }
-];
+const KEY = 'breakfast_app_v1';
 const CAT_LABEL = Object.fromEntries(CATEGORIES.map(c => [c.key, c.name]));
 
 /* ---------- 日期工具 ---------- */
@@ -52,22 +43,12 @@ function adjustQty(qty, delta) {
     return (m[1] + num + ' ' + m[3]).trim();
 }
 
-/* ---------- 预置食谱（按分类整理的初始数据） ---------- */
+/* ---------- 预置食谱：数据来自 js/seed.data.js（分类 → 菜名），此处只补 id 与空字段 ---------- */
 function seedRecipes() {
-    const groups = [
-        ['mian',  ['牛肉面（含加蛋番茄牛肉面）', '意大利面', '竹升面', '方便面', '炝锅面', '莜面鱼鱼']],
-        ['zhong', ['煎饼', '手抓饼', '土豆丝饼', '糯玉米饼', '牛肉饼', '牛肉馅饼', '煎饺子', '包子', '猪肉包子', '小馒头', '馒头', '奶香馒头', '油条', '汤圆', '粑粑', '海鲜年糕', '藕合']],
-        ['xi',    ['面包', '面包片', '黄油面包', '烤芝士面包片', '芝士果酱面包片', '法棍', '贝果', '牛角包', '三明治', '披萨', '芝士牛肉卷', '薯饼']],
-        ['dian',  ['苹果派', '香蕉派', '燕麦派', '炸鲜奶']],
-        ['dan',   ['鸡蛋', '摊鸡蛋', '煎鸡蛋', '茶叶蛋', '鸡蛋羹', '面包块鸡蛋', '面包片夹鸡蛋']],
-        ['rou',   ['牛排', '牛肉肠', '黑虎虾肠', '川香鸡柳', '鸡块', '牙签肉', '叉烧肉', '小肚']],
-        ['zhou',  ['粥', '小米粥', '小米南瓜粥', '小米燕麦粥', '燕麦粥', '燕麦米粥', '杂粮粥', '豆腐脑', '黑芝麻糊', '芝麻糊', '山药糊', '燕麦牛奶', '酸奶燕麦', '牛奶', '牛奶咖啡']],
-        ['tang',  ['馄饨', '虾仁馄饨']]
-    ];
     let n = 0;
     const list = [];
-    groups.forEach(([cat, names]) => names.forEach(name => {
-        list.push({ id: 'r' + (++n), name, category: cat, tags: [], ingredients: [], steps: [], favorite: false });
+    SEED_GROUPS.forEach(({ category, names }) => names.forEach(name => {
+        list.push({ id: 'r' + (++n), name, category, tags: [], ingredients: [], steps: [], favorite: false });
     }));
     return list;
 }
