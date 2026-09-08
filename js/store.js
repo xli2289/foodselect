@@ -1,11 +1,14 @@
 ﻿const KEY = 'breakfast_app_v1';
 
 const CATEGORIES = [
-    { key: 'zhou', name: '粥' },
-    { key: 'mian', name: '面点' },
-    { key: 'dan',  name: '蛋' },
-    { key: 'xi',   name: '西式' },
-    { key: 'yin',  name: '饮品' }
+    { key: 'mian',  name: '面食' },
+    { key: 'zhong', name: '中式主食' },
+    { key: 'xi',    name: '西式主食' },
+    { key: 'dian',  name: '派·甜点' },
+    { key: 'dan',   name: '蛋类' },
+    { key: 'rou',   name: '肉类' },
+    { key: 'zhou',  name: '粥·饮' },
+    { key: 'tang',  name: '汤·馄饨' }
 ];
 const CAT_LABEL = Object.fromEntries(CATEGORIES.map(c => [c.key, c.name]));
 
@@ -13,12 +16,29 @@ const CAT_LABEL = Object.fromEntries(CATEGORIES.map(c => [c.key, c.name]));
 function pad(n) { return n < 10 ? '0' + n : '' + n; }
 function dateStr(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
 function todayStr() { return dateStr(new Date()); }
+function tomorrowStr() { return dateStr(addDays(new Date(), 1)); }
 function addDays(d, n) { const x = new Date(d); x.setDate(x.getDate() + n); return x; }
 function parseDate(s) { const [y, m, dd] = s.split('-').map(Number); return new Date(y, m - 1, dd); }
+/* 日期角标：仅今天/明天触发，其余返回 null。
+   返回 `{label, kind}` 或 `null`，调用方拿到同一形态就能复制复用 */
+function dayBadge(dateStr) {
+    if (dateStr === todayStr()) return { label: '今', kind: 'today' };
+    if (dateStr === tomorrowStr()) return { label: '明', kind: 'tomorrow' };
+    return null;
+}
 const WEEK = ['日', '一', '二', '三', '四', '五', '六'];
 function fmtCN(s) {
     const d = parseDate(s);
     return (d.getMonth() + 1) + '月' + d.getDate() + '日 周' + WEEK[d.getDay()];
+}
+/* 相对今天/明天/后天/昨天；其余返回空，由调用方决定如何显示 */
+function relLabel(s) {
+    const t = todayStr(), tm = tomorrowStr();
+    if (s === t) return '今天';
+    if (s === tm) return '明天';
+    if (s === dateStr(addDays(new Date(), 2))) return '后天';
+    if (s === dateStr(addDays(new Date(), -1))) return '昨天';
+    return '';
 }
 
 function uid(p) { return (p || 'id') + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
@@ -32,28 +52,24 @@ function adjustQty(qty, delta) {
     return (m[1] + num + ' ' + m[3]).trim();
 }
 
-/* ---------- 预置食谱 ---------- */
+/* ---------- 预置食谱（按分类整理的初始数据） ---------- */
 function seedRecipes() {
-    return [
-      { id: 'r1', name: '皮蛋瘦肉粥', category: 'zhou', tags: ['清淡', '暖胃', '简单'],
-        ingredients: [{ name: '大米', qty: '100 g' }, { name: '皮蛋', qty: '2 个' }, { name: '瘦肉', qty: '200 g' }, { name: '葱花 / 盐', qty: '少许' }],
-        steps: ['大米淘净冷水下锅，大火煮开转小火慢熬', '瘦肉切丝、皮蛋切块，粥稠时放入', '加盐胡椒粉，撒葱花，关火出锅'], favorite: true },
-      { id: 'r2', name: '葱油饼', category: 'mian', tags: ['香脆', '简单'],
-        ingredients: [{ name: '面粉', qty: '300 g' }, { name: '小葱', qty: '1 把' }, { name: '油 / 盐', qty: '适量' }],
-        steps: ['面粉加温水和成软面团，醒 20 分钟', '擀薄抹油撒葱花盐，卷起再擀圆', '小火煎至两面金黄'], favorite: false },
-      { id: 'r3', name: '茶叶蛋', category: 'dan', tags: ['简单', '提前做'],
-        ingredients: [{ name: '鸡蛋', qty: '6 个' }, { name: '红茶 / 酱油 / 香料', qty: '适量' }],
-        steps: ['鸡蛋煮熟敲出裂纹', '加茶叶酱油香料卤煮 10 分钟', '泡过夜更入味'], favorite: false },
-      { id: 'r4', name: '牛奶燕麦', category: 'yin', tags: ['快捷', '简单'],
-        ingredients: [{ name: '牛奶', qty: '1 盒' }, { name: '燕麦', qty: '50 g' }],
-        steps: ['燕麦入碗，倒牛奶没过', '微波炉 1 分钟或热水冲泡', '搅匀即食'], favorite: false },
-      { id: 'r5', name: '火腿三明治', category: 'xi', tags: ['快捷'],
-        ingredients: [{ name: '吐司', qty: '2 片' }, { name: '火腿', qty: '2 片' }, { name: '生菜', qty: '2 片' }, { name: '鸡蛋', qty: '1 个' }],
-        steps: ['煎蛋与火腿', '吐司夹蛋、火腿、生菜', '对角切开'], favorite: false },
-      { id: 'r6', name: '现磨豆浆', category: 'yin', tags: ['适中', '养生'],
-        ingredients: [{ name: '黄豆', qty: '100 g' }],
-        steps: ['黄豆提前泡发', '豆浆机加水打浆', '煮沸过滤'], favorite: false }
+    const groups = [
+        ['mian',  ['牛肉面（含加蛋番茄牛肉面）', '意大利面', '竹升面', '方便面', '炝锅面', '莜面鱼鱼']],
+        ['zhong', ['煎饼', '手抓饼', '土豆丝饼', '糯玉米饼', '牛肉饼', '牛肉馅饼', '煎饺子', '包子', '猪肉包子', '小馒头', '馒头', '奶香馒头', '油条', '汤圆', '粑粑', '海鲜年糕', '藕合']],
+        ['xi',    ['面包', '面包片', '黄油面包', '烤芝士面包片', '芝士果酱面包片', '法棍', '贝果', '牛角包', '三明治', '披萨', '芝士牛肉卷', '薯饼']],
+        ['dian',  ['苹果派', '香蕉派', '燕麦派', '炸鲜奶']],
+        ['dan',   ['鸡蛋', '摊鸡蛋', '煎鸡蛋', '茶叶蛋', '鸡蛋羹', '面包块鸡蛋', '面包片夹鸡蛋']],
+        ['rou',   ['牛排', '牛肉肠', '黑虎虾肠', '川香鸡柳', '鸡块', '牙签肉', '叉烧肉', '小肚']],
+        ['zhou',  ['粥', '小米粥', '小米南瓜粥', '小米燕麦粥', '燕麦粥', '燕麦米粥', '杂粮粥', '豆腐脑', '黑芝麻糊', '芝麻糊', '山药糊', '燕麦牛奶', '酸奶燕麦', '牛奶', '牛奶咖啡']],
+        ['tang',  ['馄饨', '虾仁馄饨']]
     ];
+    let n = 0;
+    const list = [];
+    groups.forEach(([cat, names]) => names.forEach(name => {
+        list.push({ id: 'r' + (++n), name, category: cat, tags: [], ingredients: [], steps: [], favorite: false });
+    }));
+    return list;
 }
 
 function seed() {
@@ -173,14 +189,42 @@ function changeQty(id, delta) {
 }
 function delShopping(id) { state.shopping = state.shopping.filter(s => s.id !== id); save(); }
 function clearShopping() { state.shopping = []; save(); }
-// 从食谱带入食材（按名称去重合并）
-function importRecipeIngredients(recipeId) {
+// 从食谱带入食材（按名称去重合并）。date 可选：从日历/计划带入时传，存进 fromRecipe 用于后续「已备齐 → 从计划移除」链路
+function importRecipeIngredients(recipeId, date) {
     const r = getRecipe(recipeId); if (!r) return;
+    const src = date ? { id: r.id, name: r.name, date } : null;
     r.ingredients.forEach(ing => {
-      const exist = state.shopping.find(s => s.name === ing.name);
+      const exist = state.shopping.find(s => s.name === ing.name && s.fromRecipe && (!src || s.fromRecipe.id === src.id) && s.fromRecipe.date === (src && src.date));
       if (exist) { exist.qty = ing.qty || exist.qty; }
-      else state.shopping.push({ id: uid('s'), name: ing.name, qty: ing.qty || '', bought: false });
+      else state.shopping.push({ id: uid('s'), name: ing.name, qty: ing.qty || '', bought: false, fromRecipe: src });
     });
+    save();
+}
+/* 找某食谱在日历里出现过的所有日期（按时间升序） */
+function getPlannedDatesForRecipe(recipeId) {
+    return Object.keys(state.plan).filter(d => state.plan[d].indexOf(recipeId) >= 0).sort();
+}
+/* 按 fromRecipe 分组：带源的成组、孤立项单列；统计每组的"备齐"情况 */
+function getShoppingGrouped() {
+    const groups = [];
+    const byKey = {};
+    const loose = [];
+    state.shopping.forEach(it => {
+      const k = it.fromRecipe ? (it.fromRecipe.id + '|' + it.fromRecipe.date) : '';
+      if (!k) { loose.push(it); return; }
+      if (!byKey[k]) { byKey[k] = { recipe: { id: it.fromRecipe.id, name: it.fromRecipe.name }, date: it.fromRecipe.date, items: [], allBought: false }; groups.push(byKey[k]); }
+      byKey[k].items.push(it);
+    });
+    groups.forEach(g => { g.allBought = g.items.length > 0 && g.items.every(i => i.bought); });
+    return { groups, loose };
+}
+/* 完成一道计划中的菜：清空对应组的购物项 + 从 plan 中移除该食谱 */
+function finishPlannedRecipe(recipeId, date) {
+    state.shopping = state.shopping.filter(s => !(s.fromRecipe && s.fromRecipe.id === recipeId && s.fromRecipe.date === date));
+    if (state.plan[date]) {
+      state.plan[date] = state.plan[date].filter(r => r !== recipeId);
+      if (state.plan[date].length === 0) delete state.plan[date];
+    }
     save();
 }
 
@@ -199,11 +243,12 @@ function importData(json) {
 /* ---------- 暴露 ---------- */
 export {
     CATEGORIES, CAT_LABEL, USING_MEMORY, LS,
-    dateStr, todayStr, addDays, parseDate, fmtCN, uid, adjustQty,
+    dateStr, todayStr, tomorrowStr, addDays, parseDate, fmtCN, relLabel, dayBadge, uid, adjustQty,
     load, save,
     getRecipes, getRecipe, addRecipe, updateRecipe, deleteRecipe,
     getPlan, setPlan, togglePlan, addToPlan, applyLastWeek, applyWeekTemplate, getPlannedRecipeIds,
     getShopping, addShoppingItem, toggleBought, changeQty, delShopping, clearShopping, importRecipeIngredients,
+    getPlannedDatesForRecipe, getShoppingGrouped, finishPlannedRecipe,
     getSettings, updateSettings,
     exportData, importData
 };

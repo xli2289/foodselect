@@ -26,6 +26,7 @@ Object.assign(globalThis, {
 });
 
 await import(pathToFileURL(path.join(tmp, 'app.mjs')).href);
+const S = await import(pathToFileURL(path.join(tmp, 'store.mjs')).href);
 
 const $ = s => win.document.querySelector(s);
 const $$ = s => [...win.document.querySelectorAll(s)];
@@ -91,6 +92,8 @@ click($('.modal-item'));
 action('pick-confirm');
 const firstDish = $('.dish-item');
 ok('今天有已安排的菜', !!firstDish);
+// 种子食谱默认无步骤，这里给该菜注入步骤以验证「步骤面板」展开/关闭逻辑（不污染纯名称初始数据）
+S.updateRecipe(firstDish.dataset.id, { steps: ['示例步骤一', '示例步骤二'] });
 click(firstDish);
 ok('点菜品展开步骤面板', !!$('.steps-panel'));
 click(dayCell(20));
@@ -131,6 +134,32 @@ action('apply-template');
 action('confirm-ok');
 ok('确认后本周被填充（≥7 天有安排）', $$('.day.has').length >= 7 && !$('.mask'));
 
+/* 今天 vs 明天：仅这两个日期触发角标（先回到当前月，确保两者都在网格内） */
+action('cal-today');
+const todayCell = $('.day.today');
+const tBadge = todayCell && todayCell.querySelector('.day-tag-today');
+const tTomorrowBadge = todayCell && todayCell.querySelector('.day-tag-tomorrow');
+ok('今天格子有 .today 类', !!todayCell);
+ok('今天格子有「今」角标', !!tBadge && tBadge.textContent === '今');
+ok('今天格子没有「明」角标', !tTomorrowBadge);
+// 找到明天格子：把 today 的日期加一天
+const tomorrowDS = (function(){
+  const t = new Date(); t.setDate(t.getDate()+1);
+  return t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0')+'-'+String(t.getDate()).padStart(2,'0');
+})();
+const tmrCell = document.querySelector(`.day[data-date="${tomorrowDS}"]`);
+const tmBadge = tmrCell && tmrCell.querySelector('.day-tag-tomorrow');
+ok('明天格子存在且在当前月', !!tmrCell);
+ok('明天格子有「明」角标', !!tmBadge && tmBadge.textContent === '明');
+// 昨日断言已废弃：现在不在昨天加角标
+ok('今天格子不包含「昨」徽标（实现已切换到今/明）', !!todayCell && !todayCell.querySelector('.ye-tag'));
+// 当前月应只有 1 个「今」角标和 1 个「明」角标
+ok('当前月只有 1 个「今」角标', $$('.day-tag-today').length === 1);
+ok('当前月只有 1 个「明」角标', $$('.day-tag-tomorrow').length === 1);
+// 其他日子不该有任何角标：随机抽一个非今天明天的格子
+const noBadgeCell = [...$$('.day')].find(d => d !== todayCell && d !== tmrCell && !d.classList.contains('empty'));
+ok('其他格子（含昨天）不应带角标', !!noBadgeCell && !noBadgeCell.querySelector('.day-tag'));
+
 /* 套用上周：用已安排的 20 号给 27 号（20+7）做来源 */
 click(dayCell(20));
 if (!dayCell(20).classList.contains('has')) { action('open-pick'); click($('.modal-item')); action('close-modal'); }
@@ -158,7 +187,7 @@ if (emptyDay) {
   click(emptyDay);
   action('open-pick');
   ok('弹窗含搜索框', !!$('.modal-search input[data-bind="pickSearch"]'));
-  ok('弹窗含 6 个分类筛选标签', $$('.modal-filters span').length === 6);
+  ok('弹窗含正确的分类筛选标签数', $$('.modal-filters span').length === S.CATEGORIES.length + 1);
 
   /* 搜索：按食材名「牛奶」过滤 */
   const searchInput = $('.modal-search input');
@@ -258,7 +287,7 @@ if (dRec) {
 console.log('\n[12] 买菜页：tab 改名 + 食谱带入交互优化');
 action('nav', { route: 'shopping' });
 ok('底部 tab 文案为「买菜」', $$('.nav div')[2].textContent.includes('买菜'));
-ok('买菜页标题为「买菜单」', !!$('.appbar') && $('.appbar .title').textContent.includes('买菜单'));
+ok('买菜页标题为「买菜」', !!$('.appbar') && $('.appbar .title').textContent.includes('买菜'));
 ok('有「从计划带入食材」分区', !!$('.rec-pick') && $('.rp-title').textContent.includes('从计划'));
 ok('带入区提供搜索框', !!$('[data-bind="shopQ"]'));
 
@@ -281,6 +310,48 @@ ok('搜索后未安排食谱也能被找到（覆盖整个食谱库）', $$('#rp
 
 sb.value = ''; sb.dispatchEvent(new win.Event('input', { bubbles: true }));
 ok('清空搜索恢复默认（仅计划内）', !$$('#rp-list .rp-item').some(i => i.textContent.includes(nrName)));
+
+/* 已备齐半自动完成链路：今天加一道菜 → 补食材 → 带入 → 全勾 → 完成 */
+action('nav', { route: 'calendar' });
+const _rid = S.getRecipes()[0].id;
+S.addToPlan(S.todayStr(), _rid);                          // 兜底：今天加一道菜
+const _ridStored = S.getRecipes()[0].id;
+const targetDate = S.todayStr();
+const todayPlan = S.getPlan(targetDate);
+ok(`测试前置：${targetDate} 安排 ≥1 道 → ${todayPlan.length}`, todayPlan.length > 0);
+const targetRecipeId = todayPlan[0];
+const targetRecipe = S.getRecipe(targetRecipeId);
+const ingToken = Date.now().toString(36);
+S.updateRecipe(targetRecipeId, { ingredients: [
+  { name: `测试用面_${ingToken}`, qty: '100 g' },
+  { name: `测试用青菜_${ingToken}`, qty: '1 把' }
+] });
+
+S.clearShopping();
+action('nav', { route: 'shopping' });
+S.importRecipeIngredients(targetRecipeId, targetDate);
+action('nav', { route: 'calendar' }); action('nav', { route: 'shopping' });  // 触发 render
+
+ok('带入后清单按 fromRecipe 分组（出现 1 个 .shop-group）', $$('.shop-group').length === 1);
+ok('分组标题含日期 + 食谱名', (() => { const t = $('.shop-group-title').textContent; return /今天|明天|后天|\d月\d+日/.test(t) && t.includes(targetRecipe.name); })());
+ok('未买齐时出现「还差 N 样」+ 无完成按钮', !!$('.shop-status.wait') && !$('.done-btn'));
+
+/* 全勾已买 —— 走 store.toggleBought */
+S.getShopping().filter(s => s.fromRecipe && s.fromRecipe.id === targetRecipeId && !s.bought).forEach(s => S.toggleBought(s.id));
+action('nav', { route: 'calendar' }); action('nav', { route: 'shopping' });  // 触发 render
+
+ok('全部 bought 时出现「已备齐」绿色标签', !!$('.shop-status.ok'));
+const doneBtn = $('.done-btn');
+ok('出现「已做完这道菜」按钮', !!doneBtn);
+const recipeRid = doneBtn.dataset.rid, recipeDate = doneBtn.dataset.date;
+click(doneBtn);
+ok('点击完成 → 当天 plan 中该食谱被移除', !S.getPlan(recipeDate).includes(recipeRid));
+ok('点击完成 → 清单中对应 fromRecipe 食材组被清空', !S.getShopping().some(s => s.fromRecipe && s.fromRecipe.id === recipeRid && s.fromRecipe.date === recipeDate));
+
+/* 手动添加的项 → 进入「手动添加」分组（不带 fromRecipe） */
+S.addShoppingItem('散养鸡蛋' + Date.now().toString(36), '6 个');
+action('nav', { route: 'calendar' }); action('nav', { route: 'shopping' });
+ok('手动添加项进入「手动添加」分组', Array.from($$('.shop-group-title')).some(el => el.textContent.includes('手动添加')));
 
 console.log(`\n结果：${pass} 通过，${fail} 失败\n`);
 process.exit(fail ? 1 : 0);

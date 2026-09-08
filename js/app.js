@@ -130,7 +130,7 @@ function viewCalendar() {
     const totalSteps = plan.reduce((n, id) => { const r = S.getRecipe(id); return n + (r ? r.steps.length : 0); }, 0);
     const time = totalSteps > 0 ? `约 ${Math.max(5, totalSteps * 3)} 分钟` : '';
     const actionBtn = `<button class="add-dish" data-action="open-pick" data-date="${selDate}"><svg class="ic" viewBox="0 0 24 24"><use href="#ic-plus"/></svg>加一道菜</button>
-      <button class="recommend-me" data-action="open-recommend" data-date="${selDate}"><svg class="ic" viewBox="0 0 24 24"><use href="#ic-star"/></svg>不知道吃什么？让我推荐</button>`;
+      <button class="recommend-me" data-action="open-recommend" data-date="${selDate}"><svg class="ic" viewBox="0 0 24 24"><use href="#ic-chef"/></svg>不知道吃什么？让我推荐</button>`;
 
     const metaHTML = `<div class="meta">
       ${totalCount ? `<span>${totalCount} 道菜</span>` : ''}
@@ -165,12 +165,18 @@ function recGridHTML() {
       );
     }
     if (!list.length) return '<div class="empty-hint">没有匹配的食谱</div>';
-    return list.map(r =>
-      `<div class="rec-card" data-action="open-detail" data-id="${r.id}">` +
-      (r.favorite ? `<span class="fav-dot"><svg class="ic" viewBox="0 0 24 24" style="width:14px;height:14px;color:#e8b04d"><use href="#ic-star"/></svg></span>` : '') +
-      `<span class="cat cat-${r.category}">${use(r.category)}</span>` +
-      `<div class="n">${esc(r.name)}</div><div class="t">${r.ingredients.length} 样食材 · ${r.steps.length} 步</div></div>`
-    ).join('');
+    return list.map(r => {
+      const nIng = r.ingredients.length, nStp = r.steps.length;
+      const parts = [];
+      if (nIng) parts.push(`<span><svg class="ic" viewBox="0 0 24 24"><use href="#ic-bowl"/></svg>${nIng} 样</span>`);
+      if (nStp) parts.push(`<span><svg class="ic" viewBox="0 0 24 24"><use href="#ic-clock"/></svg>${nStp} 步</span>`);
+      const meta = parts.length
+        ? `<div class="t">${parts.join('')}</div>`
+        : `<div class="t"><span class="empty">待完善 · 暂无做法</span></div>`;
+      return `<div class="rec-card cat-${r.category}" data-action="open-detail" data-id="${r.id}">` +
+        `<span class="cat-tag">${use(r.category)}</span>` +
+        `<div class="n">${esc(r.name)}</div>${meta}</div>`;
+    }).join('');
 }
 function viewLibrary() {
     const tabs = [{ key: '', name: '全部' }].concat(S.CATEGORIES);
@@ -201,8 +207,6 @@ function viewDetail() {
       <div class="det-bar">
         <button class="det-back" data-action="detail-back" title="返回"><svg class="ic" viewBox="0 0 24 24"><use href="#ic-back"/></svg></button>
         <div class="det-bar-title">食谱详情</div>
-        <button class="det-fav ${r.favorite ? 'on' : ''}" data-action="toggle-fav" data-id="${r.id}" title="收藏">
-          <svg class="ic" viewBox="0 0 24 24"><use href="#ic-star"/></svg></button>
       </div>
       <div class="det-body">
         <div class="det-name">${esc(r.name)}</div>
@@ -316,9 +320,11 @@ function daysHTML(selDate) {
       const isSel = ds === selDate;
       const plan = S.getPlan(ds);
       const has = plan.length > 0;
+      const badge = S.dayBadge(ds);
       const cls = 'day' + (isSel ? ' sel' : '') + (isToday ? ' today' : '') + (has ? ' has' : '');
+      const tagHTML = badge ? `<span class="day-tag day-tag-${badge.kind}">${badge.label}</span>` : '';
       const dot = has ? `<span class="dot ${plan.length >= 2 ? 'o' : ''}"></span>` : '';
-      cells += `<div class="${cls}" data-action="open-day" data-date="${ds}">${d}${dot}</div>`;
+      cells += `<div class="${cls}" data-action="open-day" data-date="${ds}">${tagHTML}${d}${dot}</div>`;
     }
     return cells;
 }
@@ -326,20 +332,43 @@ function daysHTML(selDate) {
 /* =========================================================
    * ⑤ 买菜单（手动维护）
    * ========================================================= */
+function shopItemHTML(it) {
+    const q = `<span class="qty-ctrl">
+      <button data-action="shop-dec" data-id="${it.id}"><svg class="ic" viewBox="0 0 24 24"><use href="#ic-minus"/></svg></button>
+      <span class="q">${esc(it.qty || '1')}</span>
+      <button data-action="shop-inc" data-id="${it.id}"><svg class="ic" viewBox="0 0 24 24"><use href="#ic-plus"/></svg></button></span>`;
+    return `<div class="shop-item ${it.bought ? 'done' : ''}">
+      <span class="box" data-action="shop-toggle" data-id="${it.id}"></span>
+      <span class="name">${esc(it.name)}</span>${q}
+      <button class="del-btn" data-action="shop-del" data-id="${it.id}"><svg class="ic" viewBox="0 0 24 24"><use href="#ic-close"/></svg></button></div>`;
+}
 function viewShopping() {
-    const list = S.getShopping();
-    const items = list.map(it => {
-      const q = `<span class="qty-ctrl">
-        <button data-action="shop-dec" data-id="${it.id}"><svg class="ic" viewBox="0 0 24 24"><use href="#ic-minus"/></svg></button>
-        <span class="q">${esc(it.qty || '1')}</span>
-        <button data-action="shop-inc" data-id="${it.id}"><svg class="ic" viewBox="0 0 24 24"><use href="#ic-plus"/></svg></button></span>`;
-      return `<div class="shop-item ${it.bought ? 'done' : ''}">
-        <span class="box" data-action="shop-toggle" data-id="${it.id}"></span>
-        <span class="name">${esc(it.name)}</span>${q}
-        <button class="del-btn" data-action="shop-del" data-id="${it.id}"><svg class="ic" viewBox="0 0 24 24"><use href="#ic-close"/></svg></button></div>`;
-    }).join('');
+    const { groups, loose } = S.getShoppingGrouped();
+    const groupHTML = groups.length ? groups.map(g => {
+      const rel = S.relLabel(g.date);
+      const dateLabel = rel ? rel : S.fmtCN(g.date);
+      const unBought = g.items.filter(i => !i.bought).length;
+      const statusTag = g.allBought
+        ? `<span class="shop-status ok"><svg class="ic" viewBox="0 0 24 24"><use href="#ic-check"/></svg>已备齐</span>`
+        : (unBought === g.items.length ? `<span class="shop-status wait">还差 ${unBought} 样</span>` : `<span class="shop-status wait">还差 ${unBought} 样</span>`);
+      const doneBtn = g.allBought
+        ? `<button class="done-btn" data-action="finish-planned" data-rid="${g.recipe.id}" data-date="${g.date}"><svg class="ic" viewBox="0 0 24 24"><use href="#ic-check"/></svg>已做完这道菜</button>`
+        : '';
+      const title = `${dateLabel} · ${esc(g.recipe.name)}`;
+      return `<div class="shop-group">
+        <div class="shop-group-head">
+          <span class="shop-group-title"><svg class="ic" viewBox="0 0 24 24"><use href="#ic-calendar"/></svg>${title}</span>
+          ${statusTag}${doneBtn}
+        </div>
+        <div class="shop-group-body">${g.items.map(shopItemHTML).join('')}</div>
+      </div>`;
+    }).join('') : '';
+    const looseHTML = loose.length
+      ? `<div class="shop-group"><div class="shop-group-head"><span class="shop-group-title"><svg class="ic" viewBox="0 0 24 24"><use href="#ic-cart"/></svg>手动添加</span></div><div class="shop-group-body">${loose.map(shopItemHTML).join('')}</div></div>`
+      : '';
+    const items = groupHTML + looseHTML;
     return `<div class="view">
-      <div class="appbar"><div class="title"><svg class="ic" viewBox="0 0 24 24"><use href="#ic-cart"/></svg>买菜单</div></div>
+      <div class="appbar"><div class="title"><svg class="ic" viewBox="0 0 24 24"><use href="#ic-cart"/></svg>买菜</div></div>
       <div class="add-row">
         <input class="add-input" id="shop-input" placeholder="添加要买的，如 鸡蛋">
         <button class="add-btn" data-action="shop-add"><svg class="ic" viewBox="0 0 24 24"><use href="#ic-plus"/></svg></button>
@@ -354,7 +383,7 @@ function viewShopping() {
       </div>
       <div class="sec-title">买菜清单 <span class="muted">（手动维护）</span></div>
       <div class="shop-list">${items || '<div class="empty-hint">买菜清单是空的，先加点要买的</div>'}</div>
-      ${list.length ? '<div class="clear" data-action="shop-clear"><svg class="ic" viewBox="0 0 24 24"><use href="#ic-broom"/></svg>清空买菜清单</div>' : ''}
+      ${(groups.length || loose.length) ? '<div class="clear" data-action="shop-clear"><svg class="ic" viewBox="0 0 24 24"><use href="#ic-broom"/></svg>清空买菜清单</div>' : ''}
     </div>`;
 }
 /* 买菜页「从计划带入食材」列表：默认只列计划内的食谱；输入搜索词则在整个食谱库里检索 */
@@ -377,7 +406,9 @@ function recPickHTML() {
     }
     return recs.map(r => {
       const imported = r.ingredients.length > 0 && r.ingredients.every(i => list.some(s => s.name === i.name));
-      return `<div class="rp-item ${imported ? 'sel' : ''}" data-action="import-recipe" data-id="${r.id}">
+      const dates = S.getPlannedDatesForRecipe(r.id);
+      const pickDate = dates.length ? dates[0] : '';
+      return `<div class="rp-item ${imported ? 'sel' : ''}" data-action="import-recipe" data-id="${r.id}" data-date="${pickDate}">
         <span class="cat cat-${r.category}">${use(r.category)}</span>${esc(r.name)}
         <button class="rp-go ${imported ? 'on' : ''}">${imported ? '已加入' : '加入'}</button></div>`;
     }).join('');
@@ -440,7 +471,7 @@ function openRecommend(date) {
 }
 function renderRecommendModal() {
     const date = ctx.rec.date;
-    openModal(`<div class="modal-head"><svg class="ic" viewBox="0 0 24 24"><use href="#ic-star"/></svg>随机推荐
+    openModal(`<div class="modal-head"><svg class="ic" viewBox="0 0 24 24"><use href="#ic-chef"/></svg>随机推荐
       <button class="x" data-action="close-modal"><svg class="ic" viewBox="0 0 24 24"><use href="#ic-close"/></svg></button></div>
       <div class="rec-sub">${S.fmtCN(date)} · 不知道吃什么？点选你想要的</div>
       <div class="modal-list rec-list">${recListHTML()}</div>
@@ -682,7 +713,6 @@ app.addEventListener('click', e => {
         closeModal();
         break;
       }
-      case 'toggle-fav': { const r = S.getRecipe(id); S.updateRecipe(id, { favorite: !r.favorite }); render(); break; }
       case 'del-recipe': customConfirm('确定删除该食谱？', () => { S.deleteRecipe(id); toast('已删除'); route = 'library'; render(); }); break;
 
       /* 选中日期：网格与箭头共用同一入口 */
@@ -720,7 +750,20 @@ app.addEventListener('click', e => {
       case 'shop-dec': S.changeQty(id, -1); render(); break;
       case 'shop-del': customConfirm('确定删除该项？', () => { S.delShopping(id); render(); }); break;
       case 'shop-clear': customConfirm('清空整个清单？', () => { S.clearShopping(); render(); }); break;
-      case 'import-recipe': S.importRecipeIngredients(id); toast('已带入食材'); render(); break;
+      case 'import-recipe': {
+        const date = (el && el.dataset && el.dataset.date) || '';
+        S.importRecipeIngredients(id, date);
+        toast(date ? '已带入食材（关联计划）' : '已带入食材');
+        render();
+        break;
+      }
+      case 'finish-planned': {
+        const rid = (el && el.dataset && el.dataset.rid) || id;
+        S.finishPlannedRecipe(rid, el.dataset.date);
+        toast('已做完，清掉对应食材并从计划移除');
+        render();
+        break;
+      }
 
       case 'dup-recipe': {
         const r = S.getRecipe(id);
