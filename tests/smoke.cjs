@@ -44,6 +44,10 @@ const heroText = () => $('.cal-hero .day-title').textContent.trim();
 const selDate = () => $('.day.sel')?.textContent.replace(/\D/g, '');
 const dayCell = d => $$('.day:not(.empty)').find(c => c.textContent.replace(/\D/g, '') === String(d));
 
+/* 记录初始种子数量：此刻 state 刚 load，尚未被任何测试新增/删除污染
+   （[13] 节「清空本地缓存」会拿它做基准） */
+const SEED_COUNT = S.getRecipes().length;
+
 console.log('\n[1] 初始渲染');
 ok('首页渲染出日历', !!$('.cal-hero') && !!$('.days'));
 ok('底部导航第一项为「计划」', $$('.nav div')[0].textContent.includes('计划'));
@@ -352,6 +356,55 @@ ok('点击完成 → 清单中对应 fromRecipe 食材组被清空', !S.getShopp
 S.addShoppingItem('散养鸡蛋' + Date.now().toString(36), '6 个');
 action('nav', { route: 'calendar' }); action('nav', { route: 'shopping' });
 ok('手动添加项进入「手动添加」分组', Array.from($$('.shop-group-title')).some(el => el.textContent.includes('手动添加')));
+
+console.log('\n[13] 设置页（我的）：清空本地缓存 / 数据清理');
+action('nav', { route: 'settings' });
+ok('底部导航新增「我的」第 4 项', $$('.nav div').length === 4 && $$('.nav div')[3].textContent.includes('我的'));
+ok('进入设置页显示「存储状态」卡片', !!$('.set-card') && $('.set-card-head').textContent.includes('存储状态'));
+ok('展示存储位置 KEY', $('.set-card').textContent.includes('breakfast_app_v1'));
+ok('展示食谱/计划/清单三项统计', $$('.set-stat').length === 3);
+ok('提供清空计划 / 清空清单 / 清空缓存三个入口',
+  !!$('[data-action="clear-plan"]') && !!$('[data-action="clear-shopping"]') && !!$('[data-action="reset-all"]'));
+
+/* 清空日历计划：plan 清空但食谱库保留 */
+const recipesBeforeClear = S.getRecipes().length;
+S.addToPlan(S.todayStr(), S.getRecipes()[0].id);
+action('nav', { route: 'settings' });
+ok('前置：今天已安排 ≥1 道菜', S.getPlan(S.todayStr()).length > 0);
+click($('[data-action="clear-plan"]'));
+ok('点清空计划弹出二次确认', !!$('[data-action="confirm-ok"]'));
+click($('[data-action="confirm-ok"]'));
+ok('清空日历计划 → 计划清空且食谱库保留',
+  S.getPlan(S.todayStr()).length === 0 && S.getRecipes().length === recipesBeforeClear);
+
+/* 清空买菜清单 */
+S.addShoppingItem('待清理测试项', '1 个');
+action('nav', { route: 'settings' });
+click($('[data-action="clear-shopping"]'));
+click($('[data-action="confirm-ok"]'));
+ok('清空买菜清单 → 清单为空', S.getShopping().length === 0);
+
+/* 清空本地缓存（危险操作）：制造脏数据后 reset，应恢复初始种子 */
+const customR = S.addRecipe({ name: '自建菜XYZ' + Date.now().toString(36), category: 'zhou' });
+S.addToPlan(S.todayStr(), customR.id);
+S.addShoppingItem('自建食材', '1 个');
+const totalWithCustom = S.getRecipes().length;
+action('nav', { route: 'settings' });
+click($('[data-action="reset-all"]'));
+ok('清空本地缓存有二次确认', !!$('[data-action="confirm-ok"]'));
+click($('[data-action="confirm-ok"]'));
+ok('清空本地缓存 → 自建食谱被移除', !S.getRecipes().some(r => r.id === customR.id));
+ok('清空本地缓存 → 食谱恢复为初始种子数量', S.getRecipes().length === SEED_COUNT && S.getRecipes().length < totalWithCustom);
+ok('清空本地缓存 → 测试期新增的其它菜也一并清除', !S.getRecipes().some(r => r.name === nrName));
+ok('清空本地缓存 → 计划与清单均清空',
+  S.getPlan(S.todayStr()).length === 0 && S.getShopping().length === 0);
+ok('清空本地缓存 → localStorage 已重写为初始数据', (() => {
+  const raw = S.LS.getItem(S.KEY);
+  if (!raw) return false;
+  const parsed = JSON.parse(raw);
+  return parsed.recipes.length === S.getRecipes().length && Object.keys(parsed.plan).length === 0;
+})());
+ok('清空后停留在设置页且页面正常渲染', !!$('.set-card') && !!$('.nav'));
 
 console.log(`\n结果：${pass} 通过，${fail} 失败\n`);
 process.exit(fail ? 1 : 0);

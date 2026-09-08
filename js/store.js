@@ -232,6 +232,31 @@ function finishPlannedRecipe(recipeId, date) {
 function getSettings() { return Object.assign({}, state.settings); }
 function updateSettings(data) { Object.assign(state.settings, data); save(); }
 
+/* ---------- 缓存 / 数据清理 ---------- */
+/* 统计当前数据规模与占用，供设置页展示 */
+function storageInfo() {
+    let raw = '';
+    try { raw = LS.getItem(KEY) || ''; } catch (e) { raw = ''; }
+    let bytes = raw.length;                       // 兜底：按字符数
+    try { bytes = new Blob([raw]).size; } catch (e) { /* 环境无 Blob 则用字符数 */ }
+    return {
+      usingMemory: USING_MEMORY,                  // true = localStorage 不可用，数据在内存里（刷新即丢）
+      bytes,
+      recipes: state.recipes.length,
+      planDays: Object.keys(state.plan).length,
+      shoppingItems: state.shopping.length
+    };
+}
+/* 仅清空日历计划（保留食谱库与买菜清单） */
+function clearPlan() { state.plan = {}; save(); }
+/* 清空本地缓存并恢复初始数据：移除 localStorage 记录 + 重置为种子状态
+   注意：会丢失自建食谱 / 计划 / 清单，不可撤销，调用方需二次确认 */
+function resetAll() {
+    try { LS.removeItem(KEY); } catch (e) { /* 隐私模式 */ }
+    state = seed();
+    save();
+}
+
 /* ---------- 导入 / 导出 ---------- */
 function exportData() { return JSON.stringify(state, null, 2); }
 function importData(json) {
@@ -242,7 +267,7 @@ function importData(json) {
 
 /* ---------- 暴露 ---------- */
 export {
-    CATEGORIES, CAT_LABEL, USING_MEMORY, LS,
+    CATEGORIES, CAT_LABEL, USING_MEMORY, LS, KEY,
     dateStr, todayStr, tomorrowStr, addDays, parseDate, fmtCN, relLabel, dayBadge, uid, adjustQty,
     load, save,
     getRecipes, getRecipe, addRecipe, updateRecipe, deleteRecipe,
@@ -250,5 +275,6 @@ export {
     getShopping, addShoppingItem, toggleBought, changeQty, delShopping, clearShopping, importRecipeIngredients,
     getPlannedDatesForRecipe, getShoppingGrouped, finishPlannedRecipe,
     getSettings, updateSettings,
+    storageInfo, clearPlan, resetAll,
     exportData, importData
 };

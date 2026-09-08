@@ -33,7 +33,7 @@ function render() {
 function navHTML() {
     const items = [
       ['calendar', 'ic-calendar', '计划'], ['library', 'ic-book', '食谱库'],
-      ['shopping', 'ic-cart', '买菜']
+      ['shopping', 'ic-cart', '买菜'], ['settings', 'ic-user', '我的']
     ];
     return '<nav class="nav">' + items.map(([r, ic, label]) =>
       `<div data-action="nav" data-route="${r}" class="${route === r ? 'on' : ''}">` +
@@ -48,6 +48,7 @@ function view() {
       case 'edit': return viewEdit();
       case 'calendar': return viewCalendar();
       case 'shopping': return viewShopping();
+      case 'settings': return viewSettings();
       default: return viewCalendar();
     }
 }
@@ -415,6 +416,60 @@ function recPickHTML() {
 }
 
 /* =========================================================
+   * ⑥ 我的 / 设置（含清空本地缓存）
+   * ========================================================= */
+function fmtBytes(n) {
+    if (!n) return '0 B';
+    if (n < 1024) return n + ' B';
+    if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KB';
+    return (n / 1024 / 1024).toFixed(2) + ' MB';
+}
+function viewSettings() {
+    const info = S.storageInfo();
+    const storeMode = info.usingMemory
+      ? '<span class="set-warn">内存（临时）</span>'
+      : '<span class="set-ok">浏览器本地</span>';
+    const stats = [
+      ['食谱', info.recipes + ' 道'],
+      ['计划', info.planDays + ' 天'],
+      ['清单', info.shoppingItems + ' 项']
+    ].map(([k, v]) => `<div class="set-stat"><b>${v}</b><span>${k}</span></div>`).join('');
+
+    return `<div class="view">
+      <div class="appbar"><div class="title"><svg class="ic" viewBox="0 0 24 24"><use href="#ic-user"/></svg>我的</div></div>
+
+      <div class="set-card">
+        <div class="set-card-head"><svg class="ic" viewBox="0 0 24 24"><use href="#ic-signal"/></svg>存储状态</div>
+        <div class="set-kv"><span>存储方式</span>${storeMode}</div>
+        <div class="set-kv"><span>存储位置</span><code>${esc(S.KEY)}</code></div>
+        <div class="set-kv"><span>占用空间</span>${fmtBytes(info.bytes)}</div>
+        <div class="set-stats">${stats}</div>
+        ${info.usingMemory ? '<div class="set-tip">当前环境禁用了本地存储，数据仅在本次会话保留，关闭页面即丢失。</div>' : ''}
+      </div>
+
+      <div class="sec-title">数据清理</div>
+      <div class="set-list">
+        <div class="set-row">
+          <div class="set-row-txt"><b>清空日历计划</b><span>移除已安排的 ${info.planDays} 天菜单，保留食谱库</span></div>
+          <button class="set-btn" data-action="clear-plan">清空</button>
+        </div>
+        <div class="set-row">
+          <div class="set-row-txt"><b>清空买菜清单</b><span>移除清单中 ${info.shoppingItems} 项，保留食谱库</span></div>
+          <button class="set-btn" data-action="clear-shopping">清空</button>
+        </div>
+      </div>
+
+      <div class="sec-title">危险操作</div>
+      <div class="set-list">
+        <div class="set-row danger">
+          <div class="set-row-txt"><b>清空本地缓存</b><span>清除本机全部数据并恢复初始 71 道菜谱；自建食谱、计划、清单都会丢失，且不可撤销</span></div>
+          <button class="set-btn danger" data-action="reset-all"><svg class="ic" viewBox="0 0 24 24"><use href="#ic-broom"/></svg>清空缓存</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+/* =========================================================
    * 弹层（选食谱）
    * ========================================================= */
 function openPick(date) {
@@ -765,6 +820,27 @@ app.addEventListener('click', e => {
         break;
       }
 
+      /* ---- 设置页：数据清理 ---- */
+      case 'clear-plan':
+        customConfirm('确定清空日历计划？已安排的菜单会全部移除（食谱库保留）。', () => {
+          S.clearPlan(); todaySelected = null; toast('已清空日历计划'); render();
+        });
+        break;
+      case 'clear-shopping':
+        customConfirm('确定清空买菜清单？', () => {
+          S.clearShopping(); toast('已清空买菜清单'); render();
+        });
+        break;
+      case 'reset-all':
+        customConfirm('确定清空本地缓存？自建食谱、日历计划、买菜清单都会丢失，且不可撤销。', () => {
+          S.resetAll();
+          ctx = { detailId: null, detailFrom: null, calDate: S.todayStr(), libFilter: '', libSearch: '', edit: null, pick: null, rec: null, shopQ: '', addDate: null };
+          todaySelected = null; route = 'settings';
+          toast('已清空本地缓存，恢复初始数据');
+          render();
+        });
+        break;
+
       case 'dup-recipe': {
         const r = S.getRecipe(id);
         if (r) { const nr = S.addRecipe({ name: r.name + '（副本）', category: r.category, tags: r.tags.slice(), ingredients: r.ingredients.map(i => ({ name: i.name, qty: i.qty })), steps: r.steps.slice() }); toast('已复制食谱'); ctx.detailId = nr.id; route = 'detail'; render(); }
@@ -868,7 +944,7 @@ function applyHash() {
     const h = location.hash.slice(1);
     if (h.indexOf('detail:') === 0) { ctx.detailId = h.slice(7); route = 'detail'; }
     else if (h.indexOf('edit:') === 0) { openEdit(h.slice(5)); return; }
-    else if (['library', 'calendar', 'shopping'].includes(h)) { route = h; ctx.calDate = null; }
+    else if (['library', 'calendar', 'shopping', 'settings'].includes(h)) { route = h; ctx.calDate = null; }
     render();
 }
 function init() {
@@ -887,7 +963,7 @@ window.addEventListener('hashchange', () => {
       if (route !== 'detail' || ctx.detailId !== id) { ctx.detailId = id; route = 'detail'; render(); }
     } else if (h.indexOf('edit:') === 0) {
       openEdit(h.slice(5));
-    } else if (['library', 'calendar', 'shopping'].includes(h)) {
+    } else if (['library', 'calendar', 'shopping', 'settings'].includes(h)) {
       if (route !== h) { route = h; ctx.calDate = null; render(); }   // 避免与 nav 的 render 重复
     }
 });
