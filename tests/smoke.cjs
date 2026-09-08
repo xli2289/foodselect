@@ -301,28 +301,36 @@ console.log('\n[12] 买菜页：tab 改名 + 食谱带入交互优化');
 action('nav', { route: 'shopping' });
 ok('底部 tab 文案为「买菜」', $$('.nav div')[2].textContent.includes('买菜'));
 ok('买菜页标题为「买菜」', !!$('.appbar') && $('.appbar .title').textContent.includes('买菜'));
-ok('有「从计划带入食材」分区', !!$('.rec-pick') && $('.rp-title').textContent.includes('从计划'));
-ok('带入区提供搜索框', !!$('[data-bind="shopQ"]'));
+ok('页面顶部只有一个输入框（手动添加）', $$('.add-input').length === 1);
 
-/* 新建一个「未安排」的食谱，默认不应出现在带入列表，但能被搜索到 */
+/* 准备一个「未安排」的食谱，用于断言「计划 tab 默认不列 / 食谱库搜索能找到」 */
 action('nav', { route: 'library' });
 click($('[data-action="open-edit"][data-id=""]'));
 const nrName = '测试未安排菜' + Date.now();
 const nameIn = $('[data-bind="name"]'); nameIn.value = nrName; nameIn.dispatchEvent(new win.Event('input', { bubbles: true }));
 const step0 = $('[data-bind="step-0"]'); step0.value = '随便做'; step0.dispatchEvent(new win.Event('input', { bubbles: true }));
 action('save-recipe');
-action('detail-back');                 // 保存后落在详情页（无底部 tab），先回到列表
+action('detail-back');
+
+/* 进入买菜 → 断言按钮存在 → 点击打开弹层 */
 action('nav', { route: 'shopping' });
+ok('有「带入食材」按钮（不再常驻搜索框）', !!$('.bring-btn') && $('.bring-btn-text').textContent.includes('带入食材'));
+click($('.bring-btn'));
+ok('点击按钮打开「带入食材」弹层', !!$('.mask .modal') && $('.modal-head').textContent.includes('带入食材'));
+ok('弹层默认 tab 为「计划」', $$('.modal .tab').some(t => t.classList.contains('on') && t.textContent.includes('计划')));
+const planTexts = $$('.modal #bring-list .bring-item').map(i => i.textContent);
+ok('计划 tab 默认只列计划内的菜，未安排的菜不出现', !planTexts.some(t => t.includes(nrName)));
 
-const defTexts = $$('#rp-list .rp-item').map(i => i.textContent);
-ok('默认只列「计划内」食谱，未安排的菜不出现', !defTexts.some(t => t.includes(nrName)));
-
-const sb = $('[data-bind="shopQ"]');
+/* 切到「食谱库」tab，未安排的菜应能被搜索到 */
+const libTab = $$('.modal .tab').find(t => t.textContent.includes('食谱库'));
+click(libTab);
+ok('切到「食谱库」tab 后显示搜索框', !!$('.modal [data-bind="bringQ"]'));
+const sb = $('[data-bind="bringQ"]');
 sb.value = nrName; sb.dispatchEvent(new win.Event('input', { bubbles: true }));
-ok('搜索后未安排食谱也能被找到（覆盖整个食谱库）', $$('#rp-list .rp-item').some(i => i.textContent.includes(nrName)));
+ok('食谱库搜索能找到未安排的新菜', $$('.modal #bring-list .bring-item').some(i => i.textContent.includes(nrName)));
 
 sb.value = ''; sb.dispatchEvent(new win.Event('input', { bubbles: true }));
-ok('清空搜索恢复默认（仅计划内）', !$$('#rp-list .rp-item').some(i => i.textContent.includes(nrName)));
+ok('清空搜索恢复显示全部食谱', $$('.modal #bring-list .bring-item').length === S.getRecipes().length);
 
 /* 已备齐半自动完成链路：今天加一道菜 → 补食材 → 带入 → 全勾 → 完成 */
 action('nav', { route: 'calendar' });

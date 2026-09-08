@@ -196,17 +196,39 @@ body{
 .add-btn{flex:0 0 auto;width:46px;border:0;border-radius:14px;background:var(--orange);color:#fff;
   display:flex;align-items:center;justify-content:center;cursor:pointer}
 .add-btn .ic{color:#fff}
-.rec-pick{margin:12px 16px;background:#fff8ef;border-radius:16px;padding:12px}
-.rec-pick .rp-title{font-size:12px;font-weight:700;color:var(--orange-d);margin-bottom:8px;display:flex;align-items:center;gap:6px}
-.rec-pick .rp-search{display:flex;align-items:center;gap:8px;margin:0 0 10px;background:#f4ece0;border-radius:12px;padding:9px 12px;font-size:13px;color:var(--soft)}
-.rec-pick .rp-search .ic{width:15px;height:15px;color:var(--soft);flex:0 0 auto}
-.rec-pick .rp-search input{flex:1;border:0;background:transparent;outline:none;font-size:13px;color:var(--ink);min-width:0}
-.rec-pick .rp-search input::placeholder{color:var(--soft)}
-.rp-item{display:flex;align-items:center;gap:8px;background:#fff;border-radius:12px;padding:9px 10px;margin-bottom:6px;font-size:13px}
-.rp-item .cat{flex:0 0 auto}
-.rp-item .rp-go{margin-left:auto;background:var(--orange);color:#fff;border:0;border-radius:10px;padding:6px 14px;font-size:11px;cursor:pointer;display:flex;align-items:center;gap:4px}
-.rp-item.sel{background:#fff3e3;border:1px solid var(--orange)}
-.rp-item .rp-go.on{background:var(--green)}
+/* 买菜页「带入食材」按钮（取代原常驻搜索框） */
+.bring-btn{display:flex;align-items:center;gap:10px;margin:6px 16px 10px;padding:12px 14px;background:#fff8ef;border:1px solid var(--line);border-radius:14px;font-size:13.5px;color:var(--ink);cursor:pointer;font-family:inherit}
+.bring-btn .ic{width:18px;height:18px;color:var(--orange-d);flex:0 0 auto}
+.bring-btn-text{flex:1;text-align:left}
+.bring-btn-go{color:var(--soft);transform:rotate(180deg)}
+.bring-btn:active{background:#fff3e3}
+
+/* 弹层内 tab（按钮式） */
+.modal .tabs{padding:8px 14px;background:transparent;border-bottom:1px solid var(--line);margin:0;gap:4px}
+.modal .tab{display:flex;align-items:center;gap:5px;font-size:12.5px;padding:7px 14px;border-radius:14px;background:#fff;border:1px solid var(--line);color:var(--soft);cursor:pointer;font-family:inherit}
+.modal .tab .ic{width:14px;height:14px}
+.modal .tab.on{background:var(--orange);color:#fff;border-color:var(--orange)}
+
+/* 弹层内搜索框 */
+.modal .bring-search{display:flex;align-items:center;gap:8px;margin:10px 14px;background:#f4ece0;border-radius:12px;padding:8px 12px;font-size:13px;color:var(--soft)}
+.modal .bring-search .ic{width:15px;height:15px;color:var(--soft);flex:0 0 auto}
+.modal .bring-search input{flex:1;border:0;background:transparent;outline:none;font-size:13px;color:var(--ink);min-width:0}
+.modal .bring-search input::placeholder{color:var(--soft)}
+
+/* 弹层内食谱列表 */
+.modal .bring-list{padding:0 14px 12px;display:flex;flex-direction:column;gap:6px;max-height:46vh;overflow:auto}
+.modal .bring-item{display:flex;align-items:center;gap:8px;background:#fff;border-radius:12px;padding:9px 10px;font-size:13px;cursor:pointer;border:1px solid transparent}
+.modal .bring-item .cat{flex:0 0 auto}
+.modal .bring-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.modal .bring-date{font-size:11px;color:var(--soft);background:#f4ece0;padding:2px 6px;border-radius:6px;flex:0 0 auto}
+.modal .bring-go{margin-left:6px;background:var(--orange);color:#fff;border:0;border-radius:10px;padding:6px 12px;font-size:11px;cursor:pointer;display:flex;align-items:center;gap:4px;flex:0 0 auto}
+.modal .bring-item.sel{background:#fff3e3;border-color:var(--orange)}
+.modal .bring-item.sel .bring-go{background:var(--green)}
+
+.modal .modal-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 14px;border-top:1px solid var(--line);background:#fffaf3}
+.modal .modal-foot .muted{font-size:11.5px}
+.modal .modal-foot .btn{padding:8px 16px;font-size:12.5px}
+
 .shop-list{margin:8px 16px 16px;display:flex;flex-direction:column;gap:10px}
 .shop-group{background:#fff8ef;border:1px solid var(--line);border-radius:14px;padding:12px 12px 6px}
 .shop-group-head{display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap}

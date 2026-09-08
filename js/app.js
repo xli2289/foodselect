@@ -4,7 +4,7 @@ const toastEl = document.getElementById('toast');
 
 /* ---------- 状态 ---------- */
 let route = 'calendar';
-let ctx = { detailId: null, detailFrom: null, calDate: null, libFilter: '', libSearch: '', edit: null, pick: null, rec: null, shopQ: '', addDate: null };
+let ctx = { detailId: null, detailFrom: null, calDate: null, libFilter: '', libSearch: '', edit: null, pick: null, rec: null, addDate: null, bringTab: 'plan', bringQ: '' };
 let calYear, calMonth;
 let todaySelected = null; // 当前选中日期里展开步骤的菜品 id
 let modalEl = null;
@@ -374,45 +374,76 @@ function viewShopping() {
         <input class="add-input" id="shop-input" placeholder="添加要买的，如 鸡蛋">
         <button class="add-btn" data-action="shop-add"><svg class="ic" viewBox="0 0 24 24"><use href="#ic-plus"/></svg></button>
       </div>
-      <div class="rec-pick">
-        <div class="rp-head">
-          <div class="rp-title"><svg class="ic" viewBox="0 0 24 24"><use href="#ic-calendar"/></svg>从计划带入食材</div>
-        </div>
-        <div class="rp-search"><svg class="ic" viewBox="0 0 24 24"><use href="#ic-search"/></svg>
-          <input data-bind="shopQ" placeholder="或搜索任意食谱…" value="${esc(ctx.shopQ)}"></div>
-        <div id="rp-list">${recPickHTML()}</div>
-      </div>
+      <button class="bring-btn" data-action="bring-open">
+        <svg class="ic" viewBox="0 0 24 24"><use href="#ic-basket"/></svg>
+        <span class="bring-btn-text">从计划 / 食谱库带入食材</span>
+        <svg class="ic bring-btn-go" viewBox="0 0 24 24"><use href="#ic-back"/></svg>
+      </button>
       <div class="sec-title">买菜清单 <span class="muted">（手动维护）</span></div>
       <div class="shop-list">${items || '<div class="empty-hint">买菜清单是空的，先加点要买的</div>'}</div>
       ${(groups.length || loose.length) ? '<div class="clear" data-action="shop-clear"><svg class="ic" viewBox="0 0 24 24"><use href="#ic-broom"/></svg>清空买菜清单</div>' : ''}
     </div>`;
 }
-/* 买菜页「从计划带入食材」列表：默认只列计划内的食谱；输入搜索词则在整个食谱库里检索 */
-function recPickHTML() {
-    const list = S.getShopping();
-    const q = (ctx.shopQ || '').toLowerCase().trim();
-    let recs;
-    if (q) {
-      recs = S.getRecipes().filter(r =>
-        r.name.toLowerCase().includes(q) ||
-        r.tags.some(t => t.toLowerCase().includes(q)) ||
-        r.ingredients.some(i => i.name.toLowerCase().includes(q))
-      );
+
+/* 买菜页「带入食材」弹层（按钮触发）：tab 切「计划 / 食谱库」，点菜直接复用 import-recipe */
+function renderBringModal() {
+    const tab = ctx.bringTab || 'plan';
+    const q = (ctx.bringQ || '').toLowerCase().trim();
+    const curShop = S.getShopping();
+    const tabHTML = `<div class="tabs">
+      <button class="tab ${tab === 'plan' ? 'on' : ''}" data-action="bring-tab" data-tab="plan">
+        <svg class="ic" viewBox="0 0 24 24"><use href="#ic-calendar"/></svg>计划</button>
+      <button class="tab ${tab === 'lib' ? 'on' : ''}" data-action="bring-tab" data-tab="lib">
+        <svg class="ic" viewBox="0 0 24 24"><use href="#ic-book"/></svg>食谱库</button>
+    </div>`;
+    const searchHTML = tab === 'lib'
+      ? `<div class="bring-search"><svg class="ic" viewBox="0 0 24 24"><use href="#ic-search"/></svg>
+          <input id="bring-q" data-bind="bringQ" placeholder="搜食谱名/标签/食材…" value="${esc(ctx.bringQ)}"></div>`
+      : '';
+    let bodyHTML;
+    if (tab === 'plan') {
+      const recs = S.getPlannedRecipeIds().map(id => S.getRecipe(id)).filter(Boolean);
+      bodyHTML = recs.length
+        ? recs.map(r => bringItemHTML(r, curShop)).join('')
+        : '<div class="empty-hint">还没有安排菜品，先去日历里加点菜</div>';
     } else {
-      recs = S.getPlannedRecipeIds().map(id => S.getRecipe(id)).filter(Boolean);
+      let recs;
+      if (q) {
+        recs = S.getRecipes().filter(r =>
+          r.name.toLowerCase().includes(q) ||
+          r.tags.some(t => t.toLowerCase().includes(q)) ||
+          r.ingredients.some(i => i.name.toLowerCase().includes(q))
+        );
+      } else {
+        recs = S.getRecipes();
+      }
+      bodyHTML = recs.length
+        ? recs.map(r => bringItemHTML(r, curShop)).join('')
+        : '<div class="empty-hint">没有匹配的食谱</div>';
     }
-    if (!recs.length) {
-      return q ? '<div class="empty-hint">没有匹配的食谱</div>'
-               : '<div class="empty-hint">还没有安排菜品，先在日历里加点菜，或用上方搜索任意食谱</div>';
-    }
-    return recs.map(r => {
-      const imported = r.ingredients.length > 0 && r.ingredients.every(i => list.some(s => s.name === i.name));
-      const dates = S.getPlannedDatesForRecipe(r.id);
-      const pickDate = dates.length ? dates[0] : '';
-      return `<div class="rp-item ${imported ? 'sel' : ''}" data-action="import-recipe" data-id="${r.id}" data-date="${pickDate}">
-        <span class="cat cat-${r.category}">${use(r.category)}</span>${esc(r.name)}
-        <button class="rp-go ${imported ? 'on' : ''}">${imported ? '已加入' : '加入'}</button></div>`;
-    }).join('');
+    openModal(`<div class="modal-head">
+        <svg class="ic" viewBox="0 0 24 24"><use href="#ic-basket"/></svg>带入食材
+        <button class="x" data-action="close-modal"><svg class="ic" viewBox="0 0 24 24"><use href="#ic-close"/></svg></button></div>
+      ${tabHTML}
+      ${searchHTML}
+      <div class="bring-list" id="bring-list">${bodyHTML}</div>
+      <div class="modal-foot">
+        <span class="muted">点一道菜自动关闭弹窗并加入清单</span>
+        <button class="btn ghost" data-action="close-modal">关闭</button>
+      </div>`);
+}
+
+function bringItemHTML(r, curShop) {
+    const imported = r.ingredients.length > 0 && r.ingredients.every(i => curShop.some(s => s.name === i.name));
+    const dates = S.getPlannedDatesForRecipe(r.id);
+    const pickDate = dates.length ? dates[0] : '';
+    const dateHint = pickDate ? `<span class="bring-date">${S.relLabel(pickDate) || S.fmtCN(pickDate)}</span>` : '';
+    return `<div class="bring-item ${imported ? 'sel' : ''}" data-action="import-recipe" data-id="${r.id}" data-date="${pickDate}">
+      <span class="cat cat-${r.category}">${use(r.category)}</span>
+      <span class="bring-name">${esc(r.name)}</span>
+      ${dateHint}
+      <button class="bring-go ${imported ? 'on' : ''}">${imported ? '已加入' : '+ 带入'}</button>
+    </div>`;
 }
 
 /* =========================================================
@@ -720,7 +751,25 @@ app.addEventListener('input', e => {
     const t = e.target;
     if (t.dataset.bind === 'libSearch') { ctx.libSearch = t.value; const g = document.getElementById('rec-grid'); if (g) g.innerHTML = recGridHTML(); return; }
     if (t.dataset.bind === 'pickSearch' && ctx.pick) { ctx.pick.q = t.value; const l = modalEl && modalEl.querySelector('#pick-list'); if (l) l.innerHTML = pickListHTML(); return; }
-    if (t.dataset.bind === 'shopQ') { ctx.shopQ = t.value; const l = document.getElementById('rp-list'); if (l) l.innerHTML = recPickHTML(); return; }
+    if (t.dataset.bind === 'bringQ') {
+      ctx.bringQ = t.value;
+      const l = modalEl && modalEl.querySelector('#bring-list');
+      if (l) {
+        const q = (ctx.bringQ || '').toLowerCase().trim();
+        const curShop = S.getShopping();
+        let recs = q
+          ? S.getRecipes().filter(r =>
+              r.name.toLowerCase().includes(q) ||
+              r.tags.some(tg => tg.toLowerCase().includes(q)) ||
+              r.ingredients.some(i => i.name.toLowerCase().includes(q))
+            )
+          : S.getRecipes();
+        l.innerHTML = recs.length
+          ? recs.map(r => bringItemHTML(r, curShop)).join('')
+          : '<div class="empty-hint">没有匹配的食谱</div>';
+      }
+      return;
+    }
     if (t.dataset.action === 'add-tag-input' && t.value.trim()) { ctx.edit.tags.push(t.value.trim()); t.value = ''; render(); setTimeout(() => { const ti = document.querySelector('[data-action="add-tag-input"]'); if (ti) ti.focus(); }, 50); return; }
     if (t.dataset.bind) { bindEdit(t.dataset.bind, t.value); }
 });
@@ -812,6 +861,16 @@ app.addEventListener('click', e => {
         render();
         break;
       }
+      case 'bring-open':
+        ctx.bringTab = 'plan';
+        ctx.bringQ = '';
+        renderBringModal();
+        break;
+      case 'bring-tab':
+        ctx.bringTab = el.dataset.tab;
+        ctx.bringQ = '';
+        renderBringModal();
+        break;
       case 'finish-planned': {
         const rid = (el && el.dataset && el.dataset.rid) || id;
         S.finishPlannedRecipe(rid, el.dataset.date);
@@ -834,7 +893,7 @@ app.addEventListener('click', e => {
       case 'reset-all':
         customConfirm('确定清空本地缓存？自建食谱、日历计划、买菜清单都会丢失，且不可撤销。', () => {
           S.resetAll();
-          ctx = { detailId: null, detailFrom: null, calDate: S.todayStr(), libFilter: '', libSearch: '', edit: null, pick: null, rec: null, shopQ: '', addDate: null };
+          ctx = { detailId: null, detailFrom: null, calDate: S.todayStr(), libFilter: '', libSearch: '', edit: null, pick: null, rec: null, addDate: null, bringTab: 'plan', bringQ: '' };
           todaySelected = null; route = 'settings';
           toast('已清空本地缓存，恢复初始数据');
           render();
